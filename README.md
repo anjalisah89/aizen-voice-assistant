@@ -1,1 +1,1 @@
-# voice-asst
+# aizen-voice-assistant

@@ -1,129 +1,146 @@
-import speech_recognition as sr
+import os
+import re
+import logging
 import webbrowser
 import pyttsx3
 import pyjokes
-import os
-from openai import OpenAI
+import speech_recognition as sr
+from datetime import datetime
 from dotenv import load_dotenv
+from openai import OpenAI
 
+# Load environment variables
+load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
-load_dotenv()  # load from .env file
 
-# Initialize recognizer
-ttsx = pyttsx3.init()
+if not api_key:
+    raise ValueError("OpenAI API key not found. Please check your .env file.")
 
+# Initialize OpenAI client
+client = OpenAI(api_key=api_key)
+
+# Initialize TTS engine
+tts = pyttsx3.init()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
+# Speak helper
 def speak(text):
-    ttsx.say(text)
-    ttsx.runAndWait()
+    print("Aizen:", text)
+    tts.say(text)
+    tts.runAndWait()
 
-def aiProcess(command):
-    client = OpenAI(api_key=api_key)
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are a virtual assistant named Aizen that can perform various tasks like Alexa and Google Assistant."},
-            {"role": "user", "content": command}
-        ],
-        max_tokens=100
-    )
-    return(response.choices[0].message.content)
+# Use OpenAI to process unknown commands
+def process_with_ai(command):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a virtual assistant named Aizen that can perform various tasks like Alexa and Google Assistant."},
+                {"role": "user", "content": command}
+            ],
+            max_tokens=100
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        logging.error(f"OpenAI error: {e}")
+        return "Sorry, something went wrong while processing your request."
 
-def processcommand(command):
-    print ("Command Received", command)
+# Handle the commands
+def process_command(command):
+    print(f"Command received: {command}")
 
-    if "stop" in command or "exit" in command:
-        speak("Goodbye!")
+    #Terminate Aizen
+    if re.search(r'\b(stop|exit|quit|bye)\b', command):
+        speak("Goodbye! Have a great day!")
+        logging.info("Terminating Aizen.")
         exit()
-    
-    elif "open" in command:
-        # Extract the website name from the command 
-        website = command.split("open")[-1].strip()
-        # Open the website in the default web browser 
-        webbrowser.open(f"https://{website}.com") 
+
+    elif match := re.search(r'open\s+(\S+)', command):
+        website = match.group(1)
+        # Open the website in the default browser
+        webbrowser.open(f"https://{website}.com")
         speak(f"Opening {website} for you.")
 
-    elif "search" in command:
-        # Extract the search query from the command
-        query = command.split("search")[-1].strip()
-        # Perform a Google search for the query 
-        webbrowser.open(f"https://www.google.com/search?q={query}") 
+    elif match := re.search(r'search\s+(.+)', command):
+        query = match.group(1)
+        # Perform a Google search for the query
+        webbrowser.open(f"https://www.google.com/search?q={query}")
         speak(f"Searching for {query} on Google.")
 
-    elif "play" in command:
-        # Extract the song name from the command
-        song = command.split("play")[-1].strip()
-        # Perform a Youtube search for the song
+    elif match := re.search(r'play\s+(.+)', command):
+        song = match.group(1)
+        # Open YouTube and search for the song
         webbrowser.open(f"https://www.youtube.com/results?search_query={song}")
-        speak(f"Playing {song} on Youtube.")
-    
-    elif "weather" in command:
-        # Extract the location from the command
-        location = command.split("weather")[-1].strip()
-        # Perform a Foogle Search for the Weather
+        speak(f"Playing {song} on YouTube.")
+
+    elif match := re.search(r'weather\s+in\s+(.+)', command):
+        location = match.group(1)
+        # Open Google search for the weather in the specified location
         webbrowser.open(f"https://www.google.com/search?q=weather+{location}")
         speak(f"Fetching weather information for {location}.")
 
     elif "time" in command:
         # Get the current time
-        from datetime import datetime
-        now = datetime.now()
-        current_time = now.strftime("%H:%M")
+        current_time = datetime.now().strftime("%H:%M")
         speak(f"The current time is {current_time}.")
 
     elif "date" in command:
         # Get the current date
-        from datetime import datetime
-        now = datetime.now()
-        current_date = now.strftime("%Y-%m-%d")
+        current_date = datetime.now().strftime("%Y-%m-%d")
         speak(f"Today's date is {current_date}.")
-    
+
     elif "news" in command:
-        # Perform a Google search for the news
+        # Open Google News
         webbrowser.open("https://news.google.com")
         speak("Fetching the latest news for you.")
 
     elif "joke" in command:
-        # Get a random joke
+        # Tell a random joke
         speak(pyjokes.get_joke())
 
-    elif command:
-        try:
-        # Process the command using OpenAI API
-            response = aiProcess(command)
-            speak(response)
-        except Exception as e:
-            print(f"Error: {e}")
-            speak("Something went wrong, please try again.")
-    
+    elif all(phrase not in command for phrase in ["open", "search", "play", "weather", "time", "date", "news", "joke"]):
+        # If the command is not recognized, use OpenAI to process it
+        response = process_with_ai(command)
+        speak(response)
+
     else:
-        speak("Sorry, I didn't understand that command.")     
+        speak("Sorry, I didn't understand that command.")
 
 if __name__ == "__main__":
-    # Speak a greeting message
+    # Initialize the speech recognizer
     speak("Initializing Aizen...")
     speak("Hey there, I am Aizen. How can I help you today?")
 
-    #Listen for the wake up word "Hey Aizen"
+    recognizer = sr.Recognizer()
+    active_mode = False  # Track whether Aizen is actively listening for commands
+
     while True:
-        r = sr.Recognizer()
-        
         try:
             with sr.Microphone() as source:
-                print("Listening for 'Hey Aizen'...")
-                audio = r.listen(source)
-            # Recognize speech using Google Web Speech API
-            message = r.recognize_google(audio).lower()
-            print(f"Message received: {message}")
+                if not active_mode:
+                    print("Listening for wake word...")
+                else:
+                    print("Listening for your command...")
 
-            if any(greeting in message.lower() for greeting in ["hello", "hey", "hi", "yo", "sup", "what's up", "heya", "hiya", "hey assistant", "hey aizen"]):
-                speak("Yeah, I am here.")
-                with sr.Microphone() as source:
-                    print("Aizen is active...")
-                    audio = r.listen(source)
-                    command = r.recognize_google(audio).lower()
-                    processcommand(command)
+                audio = recognizer.listen(source)
+                # Recognize speech using Google Web Speech API
+                print("Recognizing...")
+                message = recognizer.recognize_google(audio).lower()
+                print(f"You said: {message}")
+
+                if not active_mode:
+                    if any(phrase in message for phrase in ["hello", "hey", "hi", "yo", "sup", "what's up", "heya", "hiya", "hey assistant", "hey aizen"]):
+                        speak("Yeah, I am here.")
+                        active_mode = True  # Activate command mode
+                else:
+                    process_command(message)
+                    if re.search(r'\b(stop|exit|bye)\b', message):
+                        active_mode = False  # Deactivate mode after "stop" or "exit"
 
         except sr.UnknownValueError:
-            print("Sorry, I could not understand the audio.")
+            logging.warning("Speech Recognition could not understand audio.")
         except Exception as e:
-            print(f"Could not request results; {e}")
+            logging.error(f"Error: {e}")
+

@@ -1,5 +1,7 @@
 import os
 import re
+import sys
+import shutil
 import logging
 import webbrowser
 import pyttsx3
@@ -50,18 +52,52 @@ def process_with_ai(command):
 # Handle the commands
 def process_command(command):
     print(f"Command received: {command}")
+    wake_words = ["hello", "hey", "hi", "hii", "yo", "sup", "what's up", "heya", "hiya", "assistant", "hey aizen", "aizen", "listen", "listening", "help", "wake up", "activate", "start", "how are you", "are you there", "are you awake", "are you listening", "aizen are you there", "aizen are you awake", "aizen are you listening"]
 
     #Terminate Aizen
     if re.search(r'\b(stop|exit|quit|bye)\b', command):
         speak("Goodbye! Have a great day!")
         logging.info("Terminating Aizen.")
-        exit()
+        sys.exit()
+        
+    elif command.strip() in wake_words:
+        speak("Hi there! What can I do for you?")
+        return
 
-    elif match := re.search(r'open\s+(\S+)', command):
-        website = match.group(1)
-        # Open the website in the default browser
-        webbrowser.open(f"https://{website}.com")
-        speak(f"Opening {website} for you.")
+    elif match := re.search(r'open\s+(.+)', command):
+        app_or_site = match.group(1).strip().lower()
+
+        # Try to open as a system application
+        if shutil.which(app_or_site):            
+            os.startfile(app_or_site)
+            speak(f"Opening {app_or_site} application for you.")
+                
+        else:
+            words = app_or_site.split()
+            if len(words) == 1:
+                # Try to open as a website
+                site_name = app_or_site.replace(" ", "")
+                url = f"https://{site_name}.com"
+                webbrowser.open(url)
+                speak(f"{app_or_site} application not found. Opening {site_name}.com instead.")
+            else:
+                # Fallback: search on Google
+                search_query = app_or_site.replace(" ", "+")
+                fallback_url = f"https://www.google.com/search?q={search_query}"
+                webbrowser.open(fallback_url)
+                speak(f"I couldn't find an app for {app_or_site}. Searching it on Google.")
+                
+    elif match := re.search(r'close\s+(.+)', command):
+        app_or_site = match.group(1).strip().lower()
+        
+        # Try to close as a system application
+        if shutil.which(app_or_site):
+            os.system(f"taskkill /f /im {app_or_site}.exe")
+            speak(f"Closing {app_or_site} application for you.")
+        else:
+            # Closing a website is not straightforward, but we can suggest to the user
+            speak(f"I couldn't find an app for {app_or_site}.")
+            speak(f"If it's a website, sorry, I can't close it directly. You can close it manually or use a browser extensions.")
 
     elif match := re.search(r'search\s+(.+)', command):
         query = match.group(1)
@@ -120,7 +156,7 @@ if __name__ == "__main__":
         try:
             with sr.Microphone() as source:
                 if not active_mode:
-                    print("Listening for wake word...")
+                    print("Listening for \"Hey Aizen\"...")
                 else:
                     print("Listening for your command...")
 
@@ -129,11 +165,12 @@ if __name__ == "__main__":
                 print("Recognizing...")
                 message = recognizer.recognize_google(audio).lower()
                 print(f"You said: {message}")
-
+                
                 if not active_mode:
-                    if any(phrase in message for phrase in ["hello", "hey", "hi", "yo", "sup", "what's up", "heya", "hiya", "hey assistant", "hey aizen"]):
-                        speak("Yeah, I am here.")
-                        active_mode = True  # Activate command mode
+                  wake_words = ["hello", "hey", "hi", "hii", "yo", "sup", "what's up", "heya", "hiya", "assistant", "hey aizen", "aizen", "listen", "listening", "help", "wake up", "activate", "start", "how are you", "are you there", "are you awake", "are you listening", "aizen are you there", "aizen are you awake", "aizen are you listening"]
+                  if any(word in message for word in wake_words):
+                       speak("Yeah, I am here.")
+                       active_mode = True  # Activate command mode
                 else:
                     process_command(message)
                     if re.search(r'\b(stop|exit|bye)\b', message):

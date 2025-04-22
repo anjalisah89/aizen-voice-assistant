@@ -6,3 +6,4 @@ pocketsphinx
 pyjokes
 openai
 python-dotenv
+google-generativeai

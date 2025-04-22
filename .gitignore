@@ -51,7 +51,6 @@ Desktop.ini
 
 # Local environments
 .env
-.env.*
 
 # pipenv
 Pipfile.lock

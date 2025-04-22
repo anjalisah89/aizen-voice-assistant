@@ -158,12 +158,12 @@ def process_command(command):
          speak("Please specify a location for the weather report, like 'weather in London'.")
 
     # Get Time
-    elif "what time is it" in command or command == "time":
+    elif "time" in command or command == "what time is it":
         current_time = datetime.now().strftime("%I:%M %p") 
         speak(f"The current time is {current_time}.")
 
     # Get Date
-    elif "what's the date" in command or "today's date" in command or command == "date":
+    elif "date" in command or "today's date" in command or command == "what's the date":
         current_date = datetime.now().strftime("%A, %B %d, %Y") 
         speak(f"Today's date is {current_date}.")
 

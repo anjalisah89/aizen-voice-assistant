@@ -4,6 +4,5 @@ setuptools
 pyttsx3
 pocketsphinx
 pyjokes
-openai
 python-dotenv
 google-generativeai
